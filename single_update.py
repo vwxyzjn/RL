@@ -16,7 +16,8 @@ Notes:
 """
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+import argparse
 
 import torch
 
@@ -37,6 +38,20 @@ class Config:
     num_gpus_per_node: int = 1
     num_nodes: int = 1
 
+    @classmethod
+    def parse_args(cls):
+        parser = argparse.ArgumentParser()
+        
+        # Automatically create arguments from dataclass fields
+        for field in fields(cls):
+            parser.add_argument(
+                f"--{field.name}", 
+                type=field.type, 
+                default=field.default
+            )
+        
+        return cls(**vars(parser.parse_args()))
+
 
 def build_policy_config(config: Config):
     """Create a minimal policy config inline, inspired by grpo_math_1B.yaml.
@@ -55,7 +70,7 @@ def build_policy_config(config: Config):
     policy_config = {
         "model_name": model_name,
         "tokenizer": tokenizer_cfg,
-        "train_global_batch_size": 2,
+        "train_global_batch_size": config.num_nodes * config.num_gpus_per_node,
         "train_micro_batch_size": 1,
         "generation_batch_size": 1,
         "logprob_batch_size": 1,
@@ -115,7 +130,7 @@ def build_policy_config(config: Config):
             "pipeline_parallel_size": 1,
             "gpu_memory_utilization": 0.6,
             "max_model_len": max_total_seq_len,
-            "enforce_eager": False,
+            "enforce_eager": True,
         },
     }
     policy_config["generation"] = configure_generation_config(generation_cfg, tokenizer)
@@ -191,8 +206,22 @@ def main(config: Config) -> None:
 
     # 4) Create tiny numeric batch and train with NLLLoss
     print("\n▶ Creating tiny numeric batch and training with NLLLoss...")
-    train_sentences = ["a b c d e hello", "a d f world"]
-    generation_prompts = ["Have you heard of NVIDIA?", "What is calligraphy?"]
+    train_sentences = ["a b c d e hello", "a d f world"] * config.num_nodes * config.num_gpus_per_node
+    generation_prompts = [
+        "Have you heard of NVIDIA?",
+        "What is calligraphy?",
+        "What is the capital of France?",
+        "What is the capital of the United States?",
+        "What is the capital of the United Kingdom?",
+        "What is the capital of the Philippines?",
+        "What is the capital of the China?",
+        "What is the capital of the Japan?",
+        "What is the capital of the Korea?",
+        "What is the capital of the India?",
+        "What is the capital of the Pakistan?",
+        "What is the capital of the Bangladesh?",
+        "What is the capital of the Nepal?",
+    ]
     data = create_batch_from(tokenizer, sentences=train_sentences)
     loss_fn = NLLLoss()
 
@@ -244,5 +273,5 @@ def main(config: Config) -> None:
 
 
 if __name__ == "__main__":
-    config = Config()
+    config = Config.parse_args()
     main(config)
