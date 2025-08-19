@@ -16,6 +16,7 @@ Notes:
 """
 
 import os
+from dataclasses import dataclass
 
 import torch
 
@@ -29,12 +30,20 @@ from nemo_rl.models.generation.vllm import VllmGeneration
 from nemo_rl.models.policy.lm_policy import Policy
 
 
-def build_policy_config():
+@dataclass
+class Config:
+    """Configuration for single update demonstration."""
+    model: str = "Qwen/Qwen2.5-0.5B"
+    num_gpus_per_node: int = 1
+    num_nodes: int = 1
+
+
+def build_policy_config(config: Config):
     """Create a minimal policy config inline, inspired by grpo_math_1B.yaml.
 
     Keep it small and simple for demonstration. Adjust model_name as desired.
     """
-    model_name = "Qwen/Qwen2.5-0.5B"  # Smaller model for demo
+    model_name = config.model
 
     # Build tokenizer early to set pad/eos-dependent fields
     tokenizer_cfg = {"name": model_name}
@@ -140,19 +149,19 @@ def create_batch_from(tokenizer, sentences: list[str]) -> BatchedDataDict:
     )
 
 
-def main() -> None:
+def main(config: Config) -> None:
     init_ray()
 
     # 0) Config
-    policy_config, tokenizer = build_policy_config()
+    policy_config, tokenizer = build_policy_config(config)
 
     # 1) Set up compute cluster (single GPU for demo)
     print("\n▶ Setting up compute cluster...")
     cluster = RayVirtualCluster(
         name="single_update_cluster",
-        bundle_ct_per_node_list=[1],
+        bundle_ct_per_node_list=[config.num_gpus_per_node] * config.num_nodes,
         use_gpus=True,
-        num_gpus_per_node=1,
+        num_gpus_per_node=config.num_gpus_per_node,
         max_colocated_worker_groups=2,
     )
 
@@ -183,7 +192,7 @@ def main() -> None:
     # 4) Create tiny numeric batch and train with NLLLoss
     print("\n▶ Creating tiny numeric batch and training with NLLLoss...")
     train_sentences = ["a b c d e hello", "a d f world"]
-    generation_prompts = ["a b c d e ", "a d f "]
+    generation_prompts = ["Have you heard of NVIDIA?", "What is calligraphy?"]
     data = create_batch_from(tokenizer, sentences=train_sentences)
     loss_fn = NLLLoss()
 
@@ -235,4 +244,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    config = Config()
+    main(config)
