@@ -421,7 +421,8 @@ class MegatronPolicyWorker:
         if os.path.exists(hf_model_name):
             hf_model_subdir = f"model_{hf_model_subdir.replace('/', '_')}"
 
-        pretrained_path = f"{get_megatron_checkpoint_dir()}/{hf_model_subdir}"
+        # pretrained_path = f"{get_megatron_checkpoint_dir()}/{hf_model_subdir}"
+        pretrained_path = get_megatron_checkpoint_dir()
         pt_checkpoint_exists = os.path.exists(pretrained_path) and os.path.exists(
             os.path.join(pretrained_path, "iter_0000000")
         )
